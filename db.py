@@ -13,6 +13,7 @@ engine = create_engine(db_path, echo=False)
 class Polls(Base):
     __tablename__ = 'polls'
     id = Column(Integer, primary_key=True)
+    pid = Column(String)
     text = Column(String)
     yes_count = Column(Integer)
     no_count = Column(Integer)
