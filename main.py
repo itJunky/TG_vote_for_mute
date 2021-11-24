@@ -14,6 +14,16 @@ def handle_start_help(msg):
     bot.send_message(msg.chat.id, start_text)
 
 
+@bot.message_handler(commands=["mute"])
+def handle_mute(msg):
+    from_user = msg.reply_to_message.from_user.id
+    print("dbg: try to mute: {}".format(from_user))
+    # TODO d set max mute time un unixtime
+    if int(msg.from_user.id) == 611317205:
+        bot.restrict_chat_member(msg.chat.id, from_user, can_send_messages=False)
+        bot.send_message(msg.chat.id, "{} отправился медитировать в тишине.".format(from_user))
+
+
 @bot.message_handler(commands=['me'])
 def handle_me(msg):
     text = msg.text.split("/me")[1].lstrip()
@@ -25,7 +35,7 @@ def handle_me(msg):
 
 @bot.message_handler(content_types=["text"])
 def handle_commands(msg):
-    print('dbg1: some event handled {}'.format(msg.chat.id))
+    # print('dbg1: some event handled {}'.format(msg.chat.id))
     # TODO проверить, что это реплай, если нет, ответить, что нужен реплай
     # TODO искать подстроку, а не полное соотвветсвие
     mtext = msg.text.lower()
@@ -50,4 +60,10 @@ def check_all_messages(msg):
 
 if __name__ == '__main__':
     print('{} started.'.format(config.botname))
-    bot.polling(none_stop=True)
+    while True:
+        try:
+            bot.polling(none_stop=True)
+        except ReadTimeout as e:
+            print("Err in Polling: {}".format(e))
+        except Exception as e:
+            print("ERROR in Polling: {}".format(e))
