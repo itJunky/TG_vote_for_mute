@@ -24,7 +24,7 @@ def handle_btn_press(chat_id, btn_callback, from_user, text):
     if voted is None:
         print("dbg2.1: User not voted in this poll, try register and update kbd")
         cb_y, cb_n, poll = vote_in_poll(poll_id, from_user, variant)
-        send_kbd(chat_id, text, cb_y, cb_n, poll_id)
+        send_kbd(chat_id, text, cb_y, cb_n, poll_id, from_user)
 
 
 def vote_in_poll(poll_id, from_user, variant):
@@ -56,19 +56,32 @@ def vote_in_poll(poll_id, from_user, variant):
 def create_poll(msg, user):
     print("dbg2.5: try create poll")
     caption = '{} отправляется на випассану?'.format(user)
+    from_user_id = msg.reply_to_message.from_user.id
     poll_id = str(msg.chat.id) + str(msg.message_id)
-    cb_yes, cb_no = create_poll_in_db(msg.chat.id, poll_id)
-    send_kbd(msg.chat.id, caption, cb_yes, cb_no, poll_id)
+    cb_yes, cb_no = create_poll_in_db(msg.chat.id, poll_id, from_user_id)
+    send_kbd(msg.chat.id, caption, cb_yes, cb_no, poll_id, from_user_id)
 
 
-def send_kbd(chat_id, caption, cb_yes, cb_no, pid):
+def send_kbd(chat_id, caption, cb_yes, cb_no, pid, restricted_user):
     print("dbg3: try to send kbd | poll PID: {}".format(pid))
-    poll, yes_count, no_count = check_poll(pid)
-    max_votes = 2
+    poll, yes_count, no_count = check_poll_exist(pid)
+    print("dbg3.1: yes {} no {}".format(yes_count, no_count))
     mrkp = telebot.types.InlineKeyboardMarkup(row_width=2)
+    # TODO refactor all next to separate function
+    max_votes = 2
     if yes_count + no_count >= max_votes:
-        mrkp.add()
-        caption = "Голосование закончилось"
+        mrkp.add()  # remove buttons
+        if yes_count > no_count:
+            # TODO mute user (need store target id in DB before)
+            try:
+                bot.restrict_chat_member(chat_id, restricted_user, can_send_messages=False)
+                caption = "Голосование закончилось. {} отправляется на ретрит.".format(restricted_user)
+            except Exception as e:
+                print("dbg3.1.1: can't restrict: {}".format(e))
+                caption = "Голосова...ие за...сь... Что-то пошло не так..."
+        else:
+            caption = "Голосование закончилось. Ретрит отменяется"
+
     else:
         btn_yes = telebot.types.InlineKeyboardButton(text='Да ({})'.format(yes_count), callback_data=cb_yes)
         btn_no = telebot.types.InlineKeyboardButton(text='Нет ({})'.format(no_count), callback_data=cb_no)
@@ -94,22 +107,22 @@ def send_kbd(chat_id, caption, cb_yes, cb_no, pid):
                               text=caption)
 
 
-def check_poll(pid):
+def check_poll_exist(pid):
     poll = session.query(Polls).filter(Polls.pid == pid).first()
     if poll is None:
         poll = session.query(Polls).filter(Polls.id == pid).first()
 
     if poll is None:
-        print("dbg3.1: no poll, setting buttons to zero")
+        print("dbg3.2: no poll, setting buttons to zero")
         yes_count, no_count = 0, 0
     else:
-        print("dbg3.1: have poll")
+        print("dbg3.2: have poll")
         yes_count, no_count = poll.yes_count, poll.no_count
 
     return poll, yes_count, no_count
 
 
-def create_poll_in_db(caption, poll_id):
+def create_poll_in_db(caption, poll_id, ruser):
     try:
         last_id = session.query(Polls.id).order_by(Polls.id.desc()).first()[0]
     except Exception as e:
@@ -123,7 +136,8 @@ def create_poll_in_db(caption, poll_id):
                      pid=poll_id,
                      text=caption,
                      yes_count=0,
-                     no_count=0)
+                     no_count=0,
+                     user_id=ruser)
     variant_yes = Variants(poll_id=int(last_id)+1,
                            variant_callback=callback_yes,
                            yes_no='yes')

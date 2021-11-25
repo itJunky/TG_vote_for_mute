@@ -17,6 +17,7 @@ class Polls(Base):
     text = Column(String)
     yes_count = Column(Integer)
     no_count = Column(Integer)
+    user_id = Column(Integer)
 
 
 class Voters(Base):
