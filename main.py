@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import time
+import requests
 from common import handle_btn_press, create_poll
 import config
 import telebot
@@ -24,6 +26,16 @@ def handle_mute(msg):
         bot.send_message(msg.chat.id, "{} отправился медитировать в тишине.".format(from_user))
 
 
+@bot.message_handler(commands=["unmute"])
+def handle_unmute(msg):
+    from_user = msg.reply_to_message.from_user.id
+    print("dbg: try to unmute: {}".format(from_user))
+    # TODO d set max mute time un unixtime
+    if int(msg.from_user.id) == 611317205:
+        bot.restrict_chat_member(msg.chat.id, from_user, can_send_messages=True)
+        bot.send_message(msg.chat.id, "{} возвращается из медитативонй тишины.".format(from_user))
+
+
 @bot.message_handler(commands=['me'])
 def handle_me(msg):
     text = msg.text.split("/me")[1].lstrip()
@@ -39,15 +51,16 @@ def handle_commands(msg):
     # TODO проверить, что это реплай, если нет, ответить, что нужен реплай
     # TODO искать подстроку, а не полное соотвветсвие
     mtext = msg.text.lower()
-    if mtext == '!ретритнись' or mtext == '!ретрит' or mtext == '!р':
+    if '!ретритнись' in mtext or '!ретрит' in mtext or '!р ' in mtext:
         print('dbg2: need poll')
         bot.send_message(msg.chat.id, 'Уже читаю мантры')
-        # time.sleep(0.5)  # for humanityzm
+        time.sleep(0.5)  # for humanityzm
         if msg.reply_to_message.from_user.first_name is None:
             from_user = msg.reply_to_message.from_user.username
         else:
             from_user = msg.reply_to_message.from_user.first_name
         create_poll(msg, from_user)
+        # next_step need some long time or not work correctly
         # bot.register_next_step_handler(msg, create_poll, from_user)
 
 
@@ -63,7 +76,7 @@ if __name__ == '__main__':
     while True:
         try:
             bot.polling(none_stop=True)
-        except ReadTimeout as e:
+        except requests.exceptions.ReadTimeout as e:
             print("Err in Polling: {}".format(e))
         except Exception as e:
             print("ERROR in Polling: {}".format(e))
