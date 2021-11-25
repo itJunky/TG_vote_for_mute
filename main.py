@@ -32,8 +32,8 @@ def handle_unmute(msg):
     print("dbg: try to unmute: {}".format(from_user))
     # TODO d set max mute time un unixtime
     if int(msg.from_user.id) == 611317205:
-        bot.restrict_chat_member(msg.chat.id, from_user, can_send_messages=True)
-        bot.send_message(msg.chat.id, "{} возвращается из медитативонй тишины.".format(from_user))
+        bot.restrict_chat_member(msg.chat.id, from_user, can_send_messages=True, can_send_polls=True, can_send_media_messages=True, can_send_other_messages=True)
+        bot.send_message(msg.chat.id, "{} возвращается из медитативной тишины.".format(from_user))
 
 
 @bot.message_handler(commands=['me'])

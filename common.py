@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timedelta
 import config
 import telebot
 import random
@@ -24,7 +25,7 @@ def handle_btn_press(chat_id, btn_callback, from_user, text):
     if voted is None:
         print("dbg2.1: User not voted in this poll, try register and update kbd")
         cb_y, cb_n, poll = vote_in_poll(poll_id, from_user, variant)
-        send_kbd(chat_id, text, cb_y, cb_n, poll_id, from_user)
+        send_kbd(chat_id, text, cb_y, cb_n, poll_id)
 
 
 def vote_in_poll(poll_id, from_user, variant):
@@ -62,20 +63,24 @@ def create_poll(msg, user):
     send_kbd(msg.chat.id, caption, cb_yes, cb_no, poll_id, from_user_id)
 
 
-def send_kbd(chat_id, caption, cb_yes, cb_no, pid, restricted_user):
+def send_kbd(chat_id, caption, cb_yes, cb_no, pid, restricted_user=0):
     print("dbg3: try to send kbd | poll PID: {}".format(pid))
     poll, yes_count, no_count = check_poll_exist(pid)
     print("dbg3.1: yes {} no {}".format(yes_count, no_count))
     mrkp = telebot.types.InlineKeyboardMarkup(row_width=2)
     # TODO refactor all next to separate function
-    max_votes = 2
+    max_votes = 3
     if yes_count + no_count >= max_votes:
         mrkp.add()  # remove buttons
         if yes_count > no_count:
-            # TODO mute user (need store target id in DB before)
+            if restricted_user == 0:
+                poll = session.query(Polls).\
+                        filter(pid == pid).first()
+                restricted_user = poll.user_id
             try:
-                bot.restrict_chat_member(chat_id, restricted_user, can_send_messages=False)
-                caption = "Голосование закончилось. {} отправляется на ретрит.".format(restricted_user)
+                until_time = datetime.now() + timedelta(hours=1)
+                bot.restrict_chat_member(chat_id, restricted_user, can_send_messages=False, until_date=until_time)
+                caption = "Голосование закончилось. {} отправляется на ретрит. {}".format(restricted_user, until_time)
             except Exception as e:
                 print("dbg3.1.1: can't restrict: {}".format(e))
                 caption = "Голосова...ие за...сь... Что-то пошло не так..."
