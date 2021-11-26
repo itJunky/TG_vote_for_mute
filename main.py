@@ -12,7 +12,10 @@ bot = telebot.TeleBot(config.token)
 @bot.message_handler(commands=['start', 'help'])
 def handle_start_help(msg):
     print("dbg1: start or help handled")
-    start_text = 'Что бы отправить бро на ретрит, ответь на его сообщение текстом !ретритнись'
+    start_text = 'Что бы отправить бро на ретрит,\n' \
+                 'ответь на его сообщение текстом "!ретритнись"\n' \
+                 'Сообщить о своём действии можно так:\n' \
+                 '"/me медитирует"'
     bot.send_message(msg.chat.id, start_text)
 
 
