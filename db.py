@@ -13,7 +13,7 @@ engine = create_engine(db_path, echo=False)
 class Polls(Base):
     __tablename__ = 'polls'
     id = Column(Integer, primary_key=True)
-    pid = Column(String)
+    pid = Column(String)  # str(msg.chat.id) + str(msg.message_id)
     text = Column(String)
     yes_count = Column(Integer)
     no_count = Column(Integer)
@@ -33,3 +33,9 @@ class Variants(Base):
     poll_id = Column(Integer)
     variant_callback = Column(String, primary_key=True)
     yes_no = Column(String(3))
+
+
+class Chatopts(Base):
+    __tablename__ = 'chatopts'
+    chat_id = Column(Integer, primary_key=True)
+    max_votes = Column(Integer)

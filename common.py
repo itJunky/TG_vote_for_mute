@@ -4,7 +4,7 @@ import config
 import telebot
 import random
 import string
-from db import engine, Polls, Voters, Variants
+from db import engine, Polls, Voters, Variants, Chatopts
 from sqlalchemy import and_
 from sqlalchemy.orm import sessionmaker, scoped_session
 
@@ -17,15 +17,18 @@ def handle_btn_press(chat_id, btn_callback, from_user, text):
     variant = session.query(Variants).\
         filter(Variants.variant_callback == btn_callback).first()
     poll_id = variant.poll_id
-    print("dbg2.1: poll ID: {}".format(poll_id))
+    poll_pid = session.query(Polls.pid).\
+        filter(Polls.id == poll_id).first()[0]
+    print(f"dbg2.1: poll ID: {poll_id} PID: {poll_pid}")
     voted = session.query(Voters).\
         filter(and_(Voters.poll_id == poll_id,
                     Voters.user_id == from_user)).first()
 
     if voted is None:
-        print("dbg2.1: User not voted in this poll, try register and update kbd")
+        print("dbg2.2: User not voted in this poll, try register and update kbd")
         cb_y, cb_n, poll = vote_in_poll(poll_id, from_user, variant)
-        send_kbd(chat_id, text, cb_y, cb_n, poll_id)
+        # pid = str(chat_id) + str(poll_pid)
+        send_kbd(chat_id, text, cb_y, cb_n, poll_pid)
 
 
 def vote_in_poll(poll_id, from_user, variant):
@@ -59,33 +62,38 @@ def create_poll(msg, user):
     caption = '{} отправляется на випассану?'.format(user)
     from_user_id = msg.reply_to_message.from_user.id
     poll_id = str(msg.chat.id) + str(msg.message_id)
+    print(f"dbg2.6: new poll_id: {poll_id}")
     cb_yes, cb_no = create_poll_in_db(msg.chat.id, poll_id, from_user_id)
     send_kbd(msg.chat.id, caption, cb_yes, cb_no, poll_id, from_user_id)
+    return 0
 
 
 def send_kbd(chat_id, caption, cb_yes, cb_no, pid, restricted_user=0):
-    print("dbg3: try to send kbd | poll PID: {}".format(pid))
+    print(f"dbg3: try to send kbd | poll PID: {pid}")
     poll, yes_count, no_count = check_poll_exist(pid)
-    print("dbg3.1: yes {} no {}".format(yes_count, no_count))
+    print(f"dbg3.1: yes {yes_count} no {no_count}")
     mrkp = telebot.types.InlineKeyboardMarkup(row_width=2)
     # TODO refactor all next to separate function
-    max_votes = 3
+    max_votes = get_max_votes(chat_id)
+    print(f"dbg3.0.1: MAX VOTES: {max_votes}")
+
     if yes_count + no_count >= max_votes:
         mrkp.add()  # remove buttons
-        if yes_count > no_count:
-            if restricted_user == 0:
-                poll = session.query(Polls).\
-                        filter(pid == pid).first()
-                restricted_user = poll.user_id
+
+        if restricted_user == 0:
+            print(f"dbg3.0.2: POLL: {poll}")
+            restricted_user = poll.user_id
+
+        if yes_count < no_count:
+            caption = "Голосование закончилось. Ретрит отменяется"
+        else:
+            until_time = datetime.now() + timedelta(hours=1)
             try:
-                until_time = datetime.now() + timedelta(hours=1)
                 bot.restrict_chat_member(chat_id, restricted_user, can_send_messages=False, until_date=until_time)
                 caption = "Голосование закончилось. {} отправляется на ретрит. {}".format(restricted_user, until_time)
             except Exception as e:
                 print("dbg3.1.1: can't restrict: {}".format(e))
                 caption = "Голосова...ие за...сь... Что-то пошло не так..."
-        else:
-            caption = "Голосование закончилось. Ретрит отменяется"
 
     else:
         btn_yes = telebot.types.InlineKeyboardButton(text='Да ({})'.format(yes_count), callback_data=cb_yes)
@@ -97,29 +105,37 @@ def send_kbd(chat_id, caption, cb_yes, cb_no, pid, restricted_user=0):
         new_poll = bot.send_message(chat_id=chat_id,
                                     reply_markup=mrkp,
                                     text=caption)
-        poll.pid = new_poll.id
+        poll.pid = str(chat_id) + str(new_poll.id)
         session.commit()
-        print("dbg3.2 new poll: {}".format(new_poll))
+        print("dbg3.2 new poll tg reply: {}".format(new_poll))
     else:
         pid = str(poll.pid)
         print('dbg3.2 pid: {} {}, {}'.format(pid, type(pid), chat_id))
-        poll_id = int(pid.split(str(chat_id))[0])
+        msg_id = int(pid.split(str(chat_id))[1])
         # poll_id = pid.split(str(chat_id))
-        print("dbg3.3: editting msg: {}".format(poll_id))
+        print("dbg3.3: editting msg: {}".format(msg_id))
         bot.edit_message_text(chat_id=chat_id,
-                              message_id=poll_id,
+                              message_id=msg_id,
                               reply_markup=mrkp,
                               text=caption)
 
 
+def get_max_votes(chat_id):
+    max_votes = session.query(Chatopts.max_votes).\
+            filter(Chatopts.chat_id == chat_id).first()[0]
+    print("dbg4.1: max_votes {}".format(max_votes))
+    return max_votes
+
+
 def check_poll_exist(pid):
     poll = session.query(Polls).filter(Polls.pid == pid).first()
-    if poll is None:
-        poll = session.query(Polls).filter(Polls.id == pid).first()
+    # if poll is None:  # hack for id or pid working
+    #     poll = session.query(Polls).filter(Polls.id == pid).first()
 
     if poll is None:
-        print("dbg3.2: no poll, setting buttons to zero")
-        yes_count, no_count = 0, 0
+        print(f"dbg3.2: no poll {pid} in db")
+        return 127, "ERROR No Poll in DB"
+        # yes_count, no_count = 0, 0
     else:
         print("dbg3.2: have poll")
         yes_count, no_count = poll.yes_count, poll.no_count
@@ -163,3 +179,14 @@ def callback_generator(size=8, chars=string.ascii_uppercase + string.digits):
     if hash in session.query(Variants).all():
         hash = callback_generator(size=9)
     return hash
+
+
+def set_max_votes(chat_id, max_votes):
+    chatopts = session.query(Chatopts).filter(Chatopts.chat_id == chat_id).first()
+    if chatopts:
+        chatopts.max_votes=max_votes
+    else:
+        chatopts_row = Chatopts(chat_id=chat_id,
+                                max_votes=max_votes)
+        session.add(chatopts_row)
+    session.commit()
