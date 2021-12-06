@@ -11,6 +11,12 @@ Create database
 
 ```python3 ./create_db.py```
 
+Create config.py file with variables and set your values:
+```buildoutcfg
+token = 'xxx:xxxxxx'
+botname = 'Somebot'
+```
+
 Run bot
 
 ```./run_bot.sh```
